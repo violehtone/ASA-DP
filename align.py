@@ -8,7 +8,10 @@ INSTRUCTIONS:
     Complete the code (compatible with Python 3!) upload to CodeGrade via corresponding Canvas assignment.
 
 AUTHOR:
-    <Name and student ID here!>
+    Name: Ville Lehtonen
+    VUnet id: vln490
+    Student number: 2658063
+
 """
 
 
@@ -123,17 +126,29 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
         score_matrix.append(row)
         for j in range(N):
             row.append(0)
+
+    # score_matrix is now a list with M amount of lists of length N
+    # i.e. if M = 2, and N = 3 -->
+    # score_matrix = [[0,0,0], [0,0,0]]
     
     if strategy == 'global':
         #####################
         # START CODING HERE #
         #####################
-        pass    # Change the zeroes in the first row and column to the correct values.
+
+        # Change the zeros in the first row to the correct value
+        for i in range(len(score_matrix[0])):
+            if i > 0:
+                score_matrix[0][i] = score_matrix[0][i-1] - gap_penalty
+
+        # Change the zeros in the first column to the correct value
+        for j in range(len(score_matrix)):
+            if j > 0:
+                score_matrix[j][0] = score_matrix[j-1][0] - gap_penalty        
+
         #####################
         #  END CODING HERE  #
         #####################
-
-    
     
     ### 2: Fill in Score Matrix
  
@@ -147,6 +162,29 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     # for i in range(1,M):
     #     for j in range(1,N):
     #         score_matrix[i][j] = dp_function(...)
+
+    def dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix):
+        "Calculates the correct value for a cell in score matrix"
+        #Score for match / mismatch
+        score = substitution_matrix[seq1[i]][seq2[j]]
+
+        #Scores for moving vertically, horizontally, or diagonally
+        vertical = score_matrix[i][j-1] - gap_penalty
+        horizontal = score_matrix[i-1][j] - gap_penalty
+        diagonal = score_matrix[i-1][j-1] + score
+
+        if strategy == 'global':
+            return max(vertical, horizontal, diagonal)
+        elif strategy == 'local':
+            return max(vertical, horizontal, diagonal, 0)
+        else:
+            ## semi-global:
+            return 0
+
+    
+    for i in range(1, M):
+        for j in range(1,N):
+            score_matrix[i][j] = dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix)
             
     #####################
     #  END CODING HERE  #
