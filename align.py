@@ -164,24 +164,20 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     #         score_matrix[i][j] = dp_function(...)
 
     def dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix):
-        "Calculates the correct value for a cell in score matrix"
+        """Calculates the correct value for a cell in score matrix"""
         #Score for match / mismatch
-        score = substitution_matrix[seq1[i]][seq2[j]]
+        score = substitution_matrix[seq1[i-1]][seq2[j-1]]
 
         #Scores for moving vertically, horizontally, or diagonally
-        vertical = score_matrix[i][j-1] - gap_penalty
-        horizontal = score_matrix[i-1][j] - gap_penalty
+        vertical = score_matrix[i-1][j] - gap_penalty
+        horizontal = score_matrix[i][j-1] - gap_penalty
         diagonal = score_matrix[i-1][j-1] + score
 
-        if strategy == 'global':
+        if strategy == 'global' or strategy == 'semiglobal':
             return max(vertical, horizontal, diagonal)
         elif strategy == 'local':
             return max(vertical, horizontal, diagonal, 0)
-        else:
-            ## semi-global:
-            return 0
 
-    
     for i in range(1, M):
         for j in range(1,N):
             score_matrix[i][j] = dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix)
@@ -192,20 +188,72 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     
     
     ### 3: Traceback
-    
     #####################
     # START CODING HERE #
-    #####################   
+    #####################
 
-    aligned_seq1 = 'foot'  # These are dummy values! Change the code so that
-    aligned_seq2 = 'bart'  # aligned_seq1 and _seq2 contain the input sequences
-    align_score = 0        # with gaps inserted at the appropriate positions.
+    def tb_function(i, j, score_matrix, gap_penalty, strategy):
+        """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
+
+        # the score in the cell (i,j) of the score matrix
+        cell_score = score_matrix[i][j]
+
+        if strategy == "global":
+            #check if the vertical cell (the cell above) lead to the cell (i,j)
+            cell_above = score_matrix[i][j-1]
+            if cell_above - gap_penalty == cell_score:
+                return "up"
+            
+            # check the negation of the horizontal cell (-> diagonal / horizontal)
+            cell_left = score_matrix[i-1][j]
+            if cell_left - gap_penalty != cell_score:
+                return "up-left"
+            else:
+                return "left"
+        else:
+            return ""
+
+    ## Initialize the final sequence strings
+    seq1_final = ""
+    seq2_final = ""
+
+    ## initialize to the bottom-right cell
+    i = len(seq1) -1
+    j = len(seq2) -1
+
+    while True:
+        if(i >= 0 and j >= 0):
+            direction = tb_function(i, j, score_matrix, gap_penalty, strategy)
+            if direction == "up": #vertical
+                seq1_final += "-"
+                seq2_final += seq2[j]
+                j -= 1
+
+            elif direction == "up-left": #diagonal
+                seq1_final += seq1[i]
+                seq2_final += seq2[j]
+                j -= 1
+                i -= 1
+
+            elif direction == "left": #horizontal
+                seq1_final += seq1[i]
+                seq2_final += "-" #gap
+                i -= 1
+        else:
+            break
+
+    ## Reverse the final alignments
+    aligned_seq1 = seq1_final[::-1]
+    aligned_seq2 = seq2_final[::-1]
+
+    ##  aligned_seq1 = 'foot'  # These are dummy values! Change the code so that
+    ##  aligned_seq2 = 'bart'  # aligned_seq1 and _seq2 contain the input sequences
+    align_score = score_matrix[-1][-1]        # with gaps inserted at the appropriate positions.
+
 
     #####################
     #  END CODING HERE  #
     #####################   
-
-
     alignment = (aligned_seq1, aligned_seq2, align_score)
     return (alignment, score_matrix)
 
