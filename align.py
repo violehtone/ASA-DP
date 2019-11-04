@@ -71,7 +71,6 @@ def load_substitution_matrix(name):
         subst = pickle.load(f)
     return subst
     
-    
 
 def load_sequences(filepath):
     "Reads a FASTA file and returns the first two sequences it contains."
@@ -97,6 +96,39 @@ def load_sequences(filepath):
     seq2 = ''.join(seq2)
     return seq1, seq2
 
+
+def find_starting_index_for_global_alignment(score_matrix):
+    i = len(score_matrix) - 1
+    j = len(score_matrix[0]) - 1
+    return [i, j]
+
+
+def find_starting_index_for_local_alignment(score_matrix):
+    """Returns the index [i,j] of the cell with the highest value in a score matrix"""
+    result = [0,0]
+    for i in range(len(score_matrix)):
+        for j in range(len(score_matrix[i])):
+            if score_matrix[i][j] > score_matrix[result[0]][result[1]]:
+                result = [i, j]
+    return result
+
+
+def find_starting_index_for_semiglobal_alignment(score_matrix):
+    """Returns the index [i, j] of the starting cell for tracebacking semiglobal alignment"""
+    ## First, find the maximum value (and its index) from the bottom row of the matrix
+    bottom_row_max_value = max(score_matrix[-1])
+    index_of_bottom_row_max_value = [len(score_matrix) - 1, score_matrix[-1].index(bottom_row_max_value)]
+
+    ## Then, find the maximum value (and its index) from the rightmost column of the matrix
+    max_rightmost_column_values = list(map(max, score_matrix))
+    max_rightmost_column_value = max(max_rightmost_column_values)
+    index_of_max_rightmost_column_value = [max_rightmost_column_values.index(max_rightmost_column_value), len(score_matrix[0]) - 1]
+
+    ## Return the index of the max value in a cell either from the bottom row or from the most rightmost column
+    if (max_rightmost_column_value > bottom_row_max_value):
+        return index_of_max_rightmost_column_value
+    else:
+        return index_of_bottom_row_max_value
 
 
 def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
@@ -137,14 +169,14 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
         #####################
 
         # Change the zeros in the first row to the correct value
-        for i in range(len(score_matrix[0])):
-            if i > 0:
-                score_matrix[0][i] = score_matrix[0][i-1] - gap_penalty
+        for j in range(len(score_matrix[0])):
+            if j > 0:
+                score_matrix[0][j] = score_matrix[0][j-1] - gap_penalty
 
         # Change the zeros in the first column to the correct value
-        for j in range(len(score_matrix)):
-            if j > 0:
-                score_matrix[j][0] = score_matrix[j-1][0] - gap_penalty        
+        for i in range(len(score_matrix)):
+            if i > 0:
+                score_matrix[i][0] = score_matrix[i-1][0] - gap_penalty        
 
         #####################
         #  END CODING HERE  #
@@ -181,7 +213,7 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     for i in range(1, M):
         for j in range(1,N):
             score_matrix[i][j] = dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix)
-            
+    
     #####################
     #  END CODING HERE  #
     #####################   
@@ -196,50 +228,80 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
         """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
 
         # the score in the cell (i,j) of the score matrix
+        
+        print("DEBUGGING: ### i and j when entering tb_function (should be 10, 8 for global)")
+
         cell_score = score_matrix[i][j]
 
-        if strategy == "global":
-            #check if the vertical cell (the cell above) lead to the cell (i,j)
-            cell_above = score_matrix[i][j-1]
-            if cell_above - gap_penalty == cell_score:
-                return "up"
-            
-            # check the negation of the horizontal cell (-> diagonal / horizontal)
-            cell_left = score_matrix[i-1][j]
-            if cell_left - gap_penalty != cell_score:
-                return "up-left"
-            else:
-                return "left"
+        #check if the vertical cell (the cell above) lead to the cell (i,j)
+        cell_above = score_matrix[i][j-1]
+        if cell_above - gap_penalty == cell_score:
+            return "up"
+        
+        # check the negation of the horizontal cell (-> diagonal / horizontal)
+        cell_left = score_matrix[i-1][j]
+        if cell_left - gap_penalty != cell_score:
+            return "up-left"
         else:
-            return ""
-
+            return "left"
+    
     ## Initialize the final sequence strings
     seq1_final = ""
     seq2_final = ""
 
-    ## initialize to the bottom-right cell
-    i = len(seq1) -1
-    j = len(seq2) -1
+    ## initialize to the starting cell coordinates
+    #Global = bottom-right cell
+    if strategy == "global":
+        start_point = find_starting_index_for_global_alignment(score_matrix)
+        i = start_point[0]
+        j = start_point[1]
+        align_score = score_matrix[-1][-1]        # with gaps inserted at the appropriate positions.
+
+    #Semiglobal = highest value from bottom row / ri0, 0, 0, 0, 0, 0,ghtmost column
+    elif strategy == "semiglobal":
+        start_point = find_starting_index_for_semiglobal_alignment(score_matrix)
+        i = start_point[0]
+        j = start_point[1]
+        align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
+
+
+    elif strategy == "local":
+        start_point = find_starting_index_for_local_alignment(score_matrix)
+        i = start_point[0]
+        j = start_point[1]
+        align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
+
+
+    print("##INFO: starting the traceback from cell [", i ,",", j, "]")
+    print("##INFO: Correct cells to start: Global [10, 8]")
+    print("seq1: ", seq1)
+    print("seq2: ", seq2)
 
     while True:
-        if(i >= 0 and j >= 0):
+        if(i > 0 and j > 0):
             direction = tb_function(i, j, score_matrix, gap_penalty, strategy)
             if direction == "up": #vertical
                 seq1_final += "-"
-                seq2_final += seq2[j]
+                seq2_final += seq2[j-1]
                 j -= 1
+                print("INFO: moving vertically ^")
 
             elif direction == "up-left": #diagonal
-                seq1_final += seq1[i]
-                seq2_final += seq2[j]
+                seq1_final += seq1[i-1]
+                seq2_final += seq2[j-1]
                 j -= 1
                 i -= 1
+                print("INFO: moving diagonally <-^")
+
 
             elif direction == "left": #horizontal
-                seq1_final += seq1[i]
+                seq1_final += seq1[i-1]
                 seq2_final += "-" #gap
                 i -= 1
+                print("INFO: moving horizontally <-")
+
         else:
+            print("the final i, j values are: ", i+1, j+1)
             break
 
     ## Reverse the final alignments
@@ -248,15 +310,12 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
 
     ##  aligned_seq1 = 'foot'  # These are dummy values! Change the code so that
     ##  aligned_seq2 = 'bart'  # aligned_seq1 and _seq2 contain the input sequences
-    align_score = score_matrix[-1][-1]        # with gaps inserted at the appropriate positions.
-
 
     #####################
     #  END CODING HERE  #
     #####################   
     alignment = (aligned_seq1, aligned_seq2, align_score)
     return (alignment, score_matrix)
-
 
 
 def print_score_matrix(s1,s2,mat):
