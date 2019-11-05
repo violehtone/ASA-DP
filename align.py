@@ -125,7 +125,7 @@ def find_starting_index_for_semiglobal_alignment(score_matrix):
     index_of_max_rightmost_column_value = [max_rightmost_column_values.index(max_rightmost_column_value), len(score_matrix[0]) - 1]
 
     ## Return the index of the max value in a cell either from the bottom row or from the most rightmost column
-    if (max_rightmost_column_value > bottom_row_max_value):
+    if (max_rightmost_column_value >= bottom_row_max_value):
         return index_of_max_rightmost_column_value
     else:
         return index_of_bottom_row_max_value
@@ -228,9 +228,6 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
         """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
 
         # the score in the cell (i,j) of the score matrix
-        
-        print("DEBUGGING: ### i and j when entering tb_function (should be 10, 8 for global)")
-
         cell_score = score_matrix[i][j]
 
         #check if the vertical cell (the cell above) lead to the cell (i,j)
@@ -249,67 +246,58 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     seq1_final = ""
     seq2_final = ""
 
-    ## initialize to the starting cell coordinates
-    #Global = bottom-right cell
+    ## initialize to the starting cell coordinates (i, j)
     if strategy == "global":
         start_point = find_starting_index_for_global_alignment(score_matrix)
-        i = start_point[0]
-        j = start_point[1]
-        align_score = score_matrix[-1][-1]        # with gaps inserted at the appropriate positions.
 
-    #Semiglobal = highest value from bottom row / ri0, 0, 0, 0, 0, 0,ghtmost column
     elif strategy == "semiglobal":
         start_point = find_starting_index_for_semiglobal_alignment(score_matrix)
-        i = start_point[0]
-        j = start_point[1]
-        align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
-
 
     elif strategy == "local":
         start_point = find_starting_index_for_local_alignment(score_matrix)
-        i = start_point[0]
-        j = start_point[1]
-        align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
+
+    i = start_point[0]
+    j = start_point[1]
 
 
-    print("##INFO: starting the traceback from cell [", i ,",", j, "]")
-    print("##INFO: Correct cells to start: Global [10, 8]")
-    print("seq1: ", seq1)
-    print("seq2: ", seq2)
+    ## For semiglobal alignments, add the sequence cells beyond the starting cell
+    if strategy == "semiglobal":
+        helper = len(seq1) ## = 10
+        while helper > i: ## 10 >= 8
+            seq1_final += seq1[helper-1]
+            seq2_final += "-"
+            helper -= 1
+
+    #Set alignment score
+    align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
 
     while True:
         if(i > 0 and j > 0):
+            print("#### MOVING AT COORDINATES: [", i, ",", j, "]")
+
             direction = tb_function(i, j, score_matrix, gap_penalty, strategy)
             if direction == "up": #vertical
                 seq1_final += "-"
                 seq2_final += seq2[j-1]
                 j -= 1
-                print("INFO: moving vertically ^")
 
             elif direction == "up-left": #diagonal
                 seq1_final += seq1[i-1]
                 seq2_final += seq2[j-1]
                 j -= 1
                 i -= 1
-                print("INFO: moving diagonally <-^")
-
 
             elif direction == "left": #horizontal
                 seq1_final += seq1[i-1]
                 seq2_final += "-" #gap
                 i -= 1
-                print("INFO: moving horizontally <-")
 
         else:
-            print("the final i, j values are: ", i+1, j+1)
             break
 
     ## Reverse the final alignments
     aligned_seq1 = seq1_final[::-1]
     aligned_seq2 = seq2_final[::-1]
-
-    ##  aligned_seq1 = 'foot'  # These are dummy values! Change the code so that
-    ##  aligned_seq2 = 'bart'  # aligned_seq1 and _seq2 contain the input sequences
 
     #####################
     #  END CODING HERE  #
