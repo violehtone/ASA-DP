@@ -131,6 +131,75 @@ def find_starting_index_for_semiglobal_alignment(score_matrix):
         return index_of_bottom_row_max_value
 
 
+def find_starting_point(strategy, score_matrix):
+    if strategy == "global":
+        return find_starting_index_for_global_alignment(score_matrix)
+
+    elif strategy == "semiglobal":
+        return find_starting_index_for_semiglobal_alignment(score_matrix)
+
+    elif strategy == "local":
+        return find_starting_index_for_local_alignment(score_matrix)
+
+
+def dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix):
+    """Calculates the correct value for a cell in score matrix"""
+    #Score for match / mismatch
+    score = substitution_matrix[seq1[i-1]][seq2[j-1]]
+
+    #Scores for moving vertically, horizontally, or diagonally
+    vertical = score_matrix[i-1][j] - gap_penalty
+    horizontal = score_matrix[i][j-1] - gap_penalty
+    diagonal = score_matrix[i-1][j-1] + score
+
+    #for global & semiglobal, return the max value gained by moving into any of the three directions
+    #for local alignment, add a zero to the formula
+    if strategy == 'global' or strategy == 'semiglobal':
+        return max(vertical, horizontal, diagonal)
+    elif strategy == 'local':
+        return max(vertical, horizontal, diagonal, 0)
+
+
+def tb_function(i, j, score_matrix, gap_penalty, strategy):
+    """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
+
+    # the score in the cell (i,j) of the score matrix
+    cell_score = score_matrix[i][j]
+
+    #check if the vertical cell (the cell above) lead to the cell (i,j)
+    cell_above = score_matrix[i][j-1]
+    if cell_above - gap_penalty == cell_score:
+        return "up"
+    
+    # check the negation of the horizontal cell (-> diagonal / horizontal)
+    cell_left = score_matrix[i-1][j]
+    if cell_left - gap_penalty != cell_score:
+        return "up-left"
+    else:
+        return "left"
+
+
+def fix_sequence_beyond_the_starting_point(seq1, seq2, seq1_final, seq2_final, i, j):
+    """ Fixes the sequence when the starting point doesn't cover all the letters in the sequences """
+    counter_i = len(seq1)
+    counter_j = len(seq2)
+
+    # (If needed) Add missing letters to seq1 and gaps to seq2    
+    while counter_i > i:
+        seq1_final += seq1[counter_i-1]
+        seq2_final += "-"
+        counter_i -= 1
+
+    # (If needed) Add missing letters to seq2 and gaps to seq1
+    counter_j = len(seq2)
+    while counter_j > j:
+        seq2_final += seq2[counter_j-1]
+        seq1_final += "-"
+        counter_j -= 1
+
+    return seq1_final, seq2_final
+
+
 def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     "Do pairwise alignment using the specified strategy and parameters."
     # This function consists of 3 parts:
@@ -159,10 +228,6 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
         for j in range(N):
             row.append(0)
 
-    # score_matrix is now a list with M amount of lists of length N
-    # i.e. if M = 2, and N = 3 -->
-    # score_matrix = [[0,0,0], [0,0,0]]
-    
     if strategy == 'global':
         #####################
         # START CODING HERE #
@@ -187,28 +252,6 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     #####################
     # START CODING HERE #
     #####################
-    # def dp_function(...):
-    #     ...
-    #     return ...
-    #
-    # for i in range(1,M):
-    #     for j in range(1,N):
-    #         score_matrix[i][j] = dp_function(...)
-
-    def dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitution_matrix):
-        """Calculates the correct value for a cell in score matrix"""
-        #Score for match / mismatch
-        score = substitution_matrix[seq1[i-1]][seq2[j-1]]
-
-        #Scores for moving vertically, horizontally, or diagonally
-        vertical = score_matrix[i-1][j] - gap_penalty
-        horizontal = score_matrix[i][j-1] - gap_penalty
-        diagonal = score_matrix[i-1][j-1] + score
-
-        if strategy == 'global' or strategy == 'semiglobal':
-            return max(vertical, horizontal, diagonal)
-        elif strategy == 'local':
-            return max(vertical, horizontal, diagonal, 0)
 
     for i in range(1, M):
         for j in range(1,N):
@@ -218,63 +261,29 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     #  END CODING HERE  #
     #####################   
     
-    
     ### 3: Traceback
     #####################
     # START CODING HERE #
     #####################
-
-    def tb_function(i, j, score_matrix, gap_penalty, strategy):
-        """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
-
-        # the score in the cell (i,j) of the score matrix
-        cell_score = score_matrix[i][j]
-
-        #check if the vertical cell (the cell above) lead to the cell (i,j)
-        cell_above = score_matrix[i][j-1]
-        if cell_above - gap_penalty == cell_score:
-            return "up"
-        
-        # check the negation of the horizontal cell (-> diagonal / horizontal)
-        cell_left = score_matrix[i-1][j]
-        if cell_left - gap_penalty != cell_score:
-            return "up-left"
-        else:
-            return "left"
     
     ## Initialize the final sequence strings
     seq1_final = ""
     seq2_final = ""
 
-    ## initialize to the starting cell coordinates (i, j)
-    if strategy == "global":
-        start_point = find_starting_index_for_global_alignment(score_matrix)
+    ## Find the coordinates (i, j) of the cell where the traceback starts
+    start_cell = find_starting_point(strategy, score_matrix)
+    i = start_cell[0]
+    j = start_cell[1]
 
-    elif strategy == "semiglobal":
-        start_point = find_starting_index_for_semiglobal_alignment(score_matrix)
-
-    elif strategy == "local":
-        start_point = find_starting_index_for_local_alignment(score_matrix)
-
-    i = start_point[0]
-    j = start_point[1]
-
-
-    ## For semiglobal alignments, add the sequence cells beyond the starting cell
+    ## For semiglobal alignments, fix the sequences with cells beyond the starting point
     if strategy == "semiglobal":
-        helper = len(seq1) ## = 10
-        while helper > i: ## 10 >= 8
-            seq1_final += seq1[helper-1]
-            seq2_final += "-"
-            helper -= 1
+        seq1_final, seq2_final = fix_sequence_beyond_the_starting_point(seq1, seq2, seq1_final, seq2_final, i, j)
 
     #Set alignment score
     align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
 
     while True:
         if(i > 0 and j > 0):
-            print("#### MOVING AT COORDINATES: [", i, ",", j, "]")
-
             direction = tb_function(i, j, score_matrix, gap_penalty, strategy)
             if direction == "up": #vertical
                 seq1_final += "-"
@@ -289,13 +298,12 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
 
             elif direction == "left": #horizontal
                 seq1_final += seq1[i-1]
-                seq2_final += "-" #gap
+                seq2_final += "-"
                 i -= 1
-
         else:
             break
 
-    ## Reverse the final alignments
+    ## Reverse the final alignments to get them in the correct form
     aligned_seq1 = seq1_final[::-1]
     aligned_seq2 = seq2_final[::-1]
 
