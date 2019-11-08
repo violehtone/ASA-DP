@@ -116,13 +116,18 @@ def find_starting_index_for_local_alignment(score_matrix):
 def find_starting_index_for_semiglobal_alignment(score_matrix):
     """Returns the index [i, j] of the starting cell for tracebacking semiglobal alignment"""
     ## First, find the maximum value (and its index) from the bottom row of the matrix
+    print("¤¤¤¤", score_matrix)
+
     bottom_row_max_value = max(score_matrix[-1])
     index_of_bottom_row_max_value = [len(score_matrix) - 1, score_matrix[-1].index(bottom_row_max_value)]
 
     ## Then, find the maximum value (and its index) from the rightmost column of the matrix
-    max_rightmost_column_values = list(map(max, score_matrix))
-    max_rightmost_column_value = max(max_rightmost_column_values)
-    index_of_max_rightmost_column_value = [max_rightmost_column_values.index(max_rightmost_column_value), len(score_matrix[0]) - 1]
+    max_rightmost_column_values = []
+    for row in score_matrix:
+        max_rightmost_column_values.append(row[-1])
+
+    max_rightmost_column_value = max(max_rightmost_column_values)    
+    index_of_max_rightmost_column_value = [max_rightmost_column_values.index(max_rightmost_column_value), len(score_matrix[0])-1]
 
     ## Return the index of the max value in a cell either from the bottom row or from the most rightmost column
     if (max_rightmost_column_value >= bottom_row_max_value):
@@ -160,26 +165,31 @@ def dp_function(seq1, seq2, score_matrix, i, j, strategy, gap_penalty, substitut
         return max(vertical, horizontal, diagonal, 0)
 
 
-def tb_function(i, j, score_matrix, gap_penalty, strategy):
+def tb_function(i, j, score_matrix, gap_penalty, strategy, substitution_matrix, seq1, seq2):
     """Returns the direction (up, left, up-left) from which the cell (i,j)'s score was derived"""
 
     # the score in the cell (i,j) of the score matrix
     cell_score = score_matrix[i][j]
 
     #check if the vertical cell (the cell above) lead to the cell (i,j)
-    cell_above = score_matrix[i][j-1]
+    cell_above = score_matrix[i-1][j]
     if cell_above - gap_penalty == cell_score:
         return "up"
-    
-    # check the negation of the horizontal cell (-> diagonal / horizontal)
-    cell_left = score_matrix[i-1][j]
-    if cell_left - gap_penalty != cell_score:
+
+    # check if the diagonal cell (the cell on up-left) lead to the cell (i, j)
+    diagonal_cell_score = substitution_matrix[seq1[i-1]][seq2[j-1]]
+
+    cell_diagonal = score_matrix[i-1][j-1]
+    if(cell_diagonal + diagonal_cell_score == cell_score):
         return "up-left"
-    else:
+
+    # check if the horizontal cell (the cell on left) lead to cell (i, j)
+    cell_left = score_matrix[i][j-1]
+    if cell_left - gap_penalty == cell_score:
         return "left"
 
 
-def fix_sequence_beyond_the_starting_point(seq1, seq2, seq1_final, seq2_final, i, j):
+def add_gaps_to_the_end_of_sequence(seq1, seq2, seq1_final, seq2_final, i, j):
     """ Fixes the sequence when the starting point doesn't cover all the letters in the sequences """
     counter_i = len(seq1)
     counter_j = len(seq2)
@@ -195,6 +205,22 @@ def fix_sequence_beyond_the_starting_point(seq1, seq2, seq1_final, seq2_final, i
     while counter_j > j:
         seq2_final += seq2[counter_j-1]
         seq1_final += "-"
+        counter_j -= 1
+
+    return seq1_final, seq2_final
+
+def add_gaps_to_the_beginning_of_sequence(seq1_final, seq2_final, i, j, seq1, seq2):
+    counter_i = i
+    counter_j = j
+
+    while counter_i > 0:
+        seq1_final += seq1[counter_i-1]
+        seq2_final += "-"
+        counter_i -= 1
+    
+    while counter_j > 0:
+        seq1_final += "-"
+        seq2_final += seq2[counter_j-1]
         counter_j -= 1
 
     return seq1_final, seq2_final
@@ -275,33 +301,47 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     i = start_cell[0]
     j = start_cell[1]
 
-    ## For semiglobal alignments, fix the sequences with cells beyond the starting point
+    ## For semiglobal alignments, add gaps to the sequences with cells beyond the starting point
     if strategy == "semiglobal":
-        seq1_final, seq2_final = fix_sequence_beyond_the_starting_point(seq1, seq2, seq1_final, seq2_final, i, j)
+        seq1_final, seq2_final = add_gaps_to_the_end_of_sequence(seq1, seq2, seq1_final, seq2_final, i, j)        
 
     #Set alignment score
     align_score = score_matrix[i][j]        # with gaps inserted at the appropriate positions.
 
     while True:
         if(i > 0 and j > 0):
-            direction = tb_function(i, j, score_matrix, gap_penalty, strategy)
+            direction = tb_function(i, j, score_matrix, gap_penalty, strategy, substitution_matrix, seq1, seq2)
+
+            print("### currently in cell: [", i, j, "] with score: ", score_matrix[i][j])
+            print("### Cells up, up-left and left", score_matrix[i-1][j], score_matrix[i-1][j-1], score_matrix[i][j-1])
+            print("### Letters from seq1 and 2: ", seq1[i-1], seq2[j-1])
+            print("### seq1 currently: ", seq1_final[::-1])
+            print("### seq2 currently: ", seq2_final[::-1])
+
             if direction == "up": #vertical
-                seq1_final += "-"
-                seq2_final += seq2[j-1]
-                j -= 1
+                seq2_final += "-"
+                seq1_final += seq1[i-1]
+                i -= 1
+                print("### moving up ^")
 
             elif direction == "up-left": #diagonal
                 seq1_final += seq1[i-1]
                 seq2_final += seq2[j-1]
                 j -= 1
                 i -= 1
+                print("### moving diagonal <-^")
+
 
             elif direction == "left": #horizontal
-                seq1_final += seq1[i-1]
-                seq2_final += "-"
-                i -= 1
+                seq2_final += seq2[j-1]
+                seq1_final += "-"
+                j -= 1
+                print("### moving left <-")
         else:
             break
+
+    if (strategy == "global" or strategy == "semiglobal") and (i>0 or j>0):
+        seq1_final, seq2_final = add_gaps_to_the_beginning_of_sequence(seq1_final, seq2_final, i, j, seq1, seq2)
 
     ## Reverse the final alignments to get them in the correct form
     aligned_seq1 = seq1_final[::-1]
