@@ -105,12 +105,40 @@ def find_starting_index_for_global_alignment(score_matrix):
 
 def find_starting_index_for_local_alignment(score_matrix):
     """Returns the index [i,j] of the cell with the highest value in a score matrix"""
+
+    #find the maximum value from the matrix
+    max_value_cells = []
     result = [0,0]
     for i in range(len(score_matrix)):
         for j in range(len(score_matrix[i])):
-            if score_matrix[i][j] > score_matrix[result[0]][result[1]]:
+            if score_matrix[i][j] >= score_matrix[result[0]][result[1]]:
                 result = [i, j]
-    return result
+    
+    #check if there are more than one cell with same value
+    for i in range(len(score_matrix)):
+        for j in range(len(score_matrix[i])):
+            if score_matrix[i][j] == score_matrix[result[0]][result[1]]:
+                new_cell = [i, j]
+                max_value_cells.append(new_cell)
+    
+    #if only one cell found with max value --> return it
+    if len(max_value_cells) == 1:
+        return max_value_cells[0]
+    
+    #Else start comparing columns
+    else:      
+        # find the max column value
+        max_j = max(max_value_cells, key=lambda x: x[1])
+        # filter the cells based on column value
+        max_value_cells = [x for x in max_value_cells if x[1] == max_j[1]]
+
+        #if there is only one cell with highest column value --> return it
+        if len(max_value_cells) == 1:
+            return max_value_cells[0]  
+        else:
+            #return the one with lowest i
+            max_value_cells.sort(key=lambda x: x[0])
+            return max_value_cells[0] 
 
 
 def find_starting_index_for_semiglobal_alignment(score_matrix):
@@ -185,6 +213,9 @@ def tb_function(i, j, score_matrix, gap_penalty, strategy, substitution_matrix, 
     cell_left = score_matrix[i][j-1]
     if cell_left - gap_penalty == cell_score:
         return "left"
+
+    ## if none of the above fulfill, the result must be a hard zero
+    return "hard-zero"
 
 
 def add_gaps_to_the_end_of_sequence(seq1, seq2, seq1_final, seq2_final, i, j):
@@ -309,34 +340,26 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     while True:
         if(i > 0 and j > 0):
             direction = tb_function(i, j, score_matrix, gap_penalty, strategy, substitution_matrix, seq1, seq2)
-            if(strategy == "local" and score_matrix[i][j] == 0):
+            
+            #End alignment if hard 0 is found for local alignment
+            if(strategy == "local" and direction == "hard-zero"):
                 break
-
-            print("### currently in cell: [", i, j, "] with score: ", score_matrix[i][j])
-            print("### Cells up, up-left and left", score_matrix[i-1][j], score_matrix[i-1][j-1], score_matrix[i][j-1])
-            print("### Letters from seq1 and 2: ", seq1[i-1], seq2[j-1])
-            print("### seq1 currently: ", seq1_final[::-1])
-            print("### seq2 currently: ", seq2_final[::-1])
 
             if direction == "up": #vertical
                 seq2_final += "-"
                 seq1_final += seq1[i-1]
                 i -= 1
-                print("### moving up ^")
 
             elif direction == "up-left": #diagonal
                 seq1_final += seq1[i-1]
                 seq2_final += seq2[j-1]
                 j -= 1
                 i -= 1
-                print("### moving diagonal <-^")
-
 
             elif direction == "left": #horizontal
                 seq2_final += seq2[j-1]
                 seq1_final += "-"
                 j -= 1
-                print("### moving left <-")
         else:
             break
 
