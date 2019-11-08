@@ -116,10 +116,8 @@ def find_starting_index_for_local_alignment(score_matrix):
 def find_starting_index_for_semiglobal_alignment(score_matrix):
     """Returns the index [i, j] of the starting cell for tracebacking semiglobal alignment"""
     ## First, find the maximum value (and its index) from the bottom row of the matrix
-    print("¤¤¤¤", score_matrix)
-
     bottom_row_max_value = max(score_matrix[-1])
-    index_of_bottom_row_max_value = [len(score_matrix) - 1, score_matrix[-1].index(bottom_row_max_value)]
+    index_of_bottom_row_max_value = [len(score_matrix) - 1, len(score_matrix[-1]) - score_matrix[-1][::-1].index(bottom_row_max_value)- 1]
 
     ## Then, find the maximum value (and its index) from the rightmost column of the matrix
     max_rightmost_column_values = []
@@ -311,6 +309,8 @@ def align(seq1, seq2, strategy, substitution_matrix, gap_penalty):
     while True:
         if(i > 0 and j > 0):
             direction = tb_function(i, j, score_matrix, gap_penalty, strategy, substitution_matrix, seq1, seq2)
+            if(strategy == "local" and score_matrix[i][j] == 0):
+                break
 
             print("### currently in cell: [", i, j, "] with score: ", score_matrix[i][j])
             print("### Cells up, up-left and left", score_matrix[i-1][j], score_matrix[i-1][j-1], score_matrix[i][j-1])
